@@ -24,7 +24,7 @@ uint8_t* TranslateEmulatedToVirtualAddress(uint32_t addr) {
 }
 
 uint32_t io_read_32(uint16_t port) {
-	return 0;
+	return 0xfc;
 }
 
 uint32_t io_read_16(uint16_t port) {
@@ -304,6 +304,7 @@ DWORD WINAPI ICEThread(HANDLE hPipe){
 	step_pkt step;
 	uint32_t old_eip;
 	int i;
+	char* temp_buf;
 	
 	ConnectNamedPipe(hPipe, NULL);
 	
@@ -383,6 +384,17 @@ DWORD WINAPI ICEThread(HANDLE hPipe){
 					
 						WriteFile(hPipe, &regs, sizeof(ice_regs), &num_bytes, NULL);
 						break;
+					case DUMP_MEMORY:
+						temp_buf = malloc(pkt.args[1] * 16);
+						
+						for(i = 0; i < pkt.args[1] * 16; i++){
+							temp_buf[i] = bus_read_8(pkt.args[0] + i);
+						}
+						
+						WriteFile(hPipe, temp_buf, pkt.args[1] * 16, &num_bytes, NULL);
+						free(temp_buf);
+						break;
+						
 					default:
 						break;
 				}

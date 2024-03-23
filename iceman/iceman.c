@@ -38,11 +38,34 @@ void make_str_lower(char* buf, int len){
 	}
 }
 
+#define PRINT_FLAG(mask, set, clear)       if(pCPU->eflags & (1 << mask)){ \
+												printf(set); \
+											} else { \
+												printf(clear); \
+											}
+
+void dump_eflags_i386(ice_regs* pCPU){
+	PRINT_FLAG(V8086, "V", "");
+	PRINT_FLAG(RESUME, "R", "");
+	PRINT_FLAG(NESTED, "N", "");
+	PRINT_FLAG(OVERFLOW, "O", "");
+	PRINT_FLAG(DIRECTION, "D", "d");
+	PRINT_FLAG(INTERRUPT, "I", "");
+	PRINT_FLAG(TRAP, "T", "");
+	PRINT_FLAG(SIGN, "S", "");
+	PRINT_FLAG(ZERO, "Z", "");
+	PRINT_FLAG(AC, "A", "");
+	PRINT_FLAG(PARITY, "P", "");
+	PRINT_FLAG(CARRY, "C", "");
+
+	printf(" IOPL=%d", IOPL(pCPU->eflags));
+}
+
 void dump_regs_386(ice_regs* pRegs) {
 	int i;
 
 	printf("EIP= %p CPL=%d EFLAGS= ", pRegs->eip, pRegs->cpl);
-	//dump_eflags_i386(pCPU);
+	dump_eflags_i386(pRegs);
 
 	for (i = 0; i < 8; i++) {
 		if ((i % 4) == 0) printf("\n");
@@ -50,6 +73,64 @@ void dump_regs_386(ice_regs* pRegs) {
 		printf("%s: %p  ", regs_32[i], pRegs->regs[i]);
 	}
 
+	printf("\n");
+}
+
+void dump_seg_386(ice_regs* pCPU, int seg) {
+	SEGREG sgmt = pCPU->seg_regs[seg];
+
+	printf("%s (%04X): Base=%p Limit=%p DPL=%d ", seg_regs[seg], sgmt.selector, sgmt.base, sgmt.limit, DPL(sgmt));
+
+	if (VALID(sgmt)) {
+		if (STYPE(sgmt)) {
+			if (EXEC(sgmt)) {
+				printf("CODE ");
+			}
+			else {
+				printf("DATA ");
+			}
+
+			if (MODE(sgmt)) {
+				printf("USE32 ");
+			}
+			else {
+				printf("USE16 ");
+			}
+		}
+		else {
+			printf("SYSTEM \n");
+		}
+	}
+
+	else {
+		printf("NOT VALID ");
+	}
+
+	printf("\n");
+}
+
+void dump_segs_386(ice_regs* pCPU){
+	int i;
+
+	for (i = 0; i < 6; i++) {
+		dump_seg_386(pCPU, i);
+	}
+}
+
+void dump_cr_386(ice_regs* pCPU){
+	int i;
+
+	for (i = 0; i < 8; i++) {
+		if (i == 4) printf("\n");
+
+		printf("CR%d: %p  ", i, pCPU->cr[i]);
+	}
+}
+
+void dump_386(ice_regs* pCPU) {
+	dump_regs_386(pCPU);
+	dump_segs_386(pCPU);
+	dump_cr_386(pCPU);
 	printf("\n");
 }
 
@@ -122,6 +203,7 @@ int main(int argc, char** argv){
 	brk_resp csip;
 	step_pkt step;
 	int i, p;
+	unsigned char* temp_buf;
 	
 	if(!hPipe){
 		printf("Failed to open named pipe\n");
@@ -151,14 +233,40 @@ int main(int argc, char** argv){
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//wait for response and print
 			WaitPipeResponse(hPipe, &regs, sizeof(ice_regs), sizeof(ice_regs));
-			dump_regs_386(&regs);
+			dump_386(&regs);
 			printf("\n");
 			
-		}else if(strcmp(cmd, "d") == 0){
+		}else if(strcmp(cmd, "d") == 0){			
 			pkt.cmd = DUMP_MEMORY;
-			sscanf(buffer, "%s %x %x", cmd, &(pkt.args[0]), &(pkt.args[1]));
-			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//wait for response and print
+			if(sscanf(buffer, "%s %x %x", cmd, &(pkt.args[0]), &(pkt.args[1]))){
+				printf("Receiving %d paragraphs from 0x%p\n", pkt.args[1], pkt.args[0]);
+				
+				WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
+				temp_buf = malloc(pkt.args[1] * 16);
+				WaitPipeResponse(hPipe, temp_buf, pkt.args[1] * 16, pkt.args[1] * 16);
+				
+				//memset(temp_buf, 0xff, pkt.args[1] * 16);
+				
+				for(i = 0; i < pkt.args[1]; i++){
+					printf("%p: ", i * 16 + pkt.args[0]);
+					
+					for(p = 0; p < 16; p++){
+						printf("%02x ", temp_buf[i * 16 + p]);
+					}
+					
+					printf(" | ");
+					
+					for(p = 0; p < 16; p++){
+						printf("%c", temp_buf[i * 16 + p]);
+					}
+					
+					printf("\n");
+				}
+				
+				printf("\n");
+				
+				free(temp_buf);
+			}
 			
 		}else if(strcmp(cmd, "dmf") == 0){
 			printf("Unsupported!\n");
@@ -169,23 +277,29 @@ int main(int argc, char** argv){
 		}else if(strcmp(cmd, "dgdt") == 0){
 			printf("Unsupported!\n");
 			
+		}else if(strcmp(cmd, "dldt") == 0){
+			printf("Unsupported!\n");
+			
 		}else if(strcmp(cmd, "didt") == 0){
 			printf("Unsupported!\n");
 			
 		}else if(strcmp(cmd, "u") == 0){
 			printf("Unsupported!\n");
+			printf("FIXME\n");
 			
 		}else if(strcmp(cmd, "bp") == 0){
 			pkt.cmd = SET_BP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get breakpoint number response and print
+			printf("FIXME\n");
 			
 		}else if(strcmp(cmd, "br") == 0){
 			pkt.cmd = UNSET_BP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get breakpoint number response and print
+			printf("FIXME\n");
 			
 		}
 		else if(strcmp(cmd, "wp") == 0){
@@ -195,23 +309,27 @@ int main(int argc, char** argv){
 			}
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get breakpoint number response and print
+			printf("FIXME\n");
 		}
 		else if(strcmp(cmd, "wr") == 0){
 			pkt.cmd = UNSET_WP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get breakpoint number response and print
+			printf("FIXME\n");
 		}
 		else if(strcmp(cmd, "bl") == 0){
 			pkt.cmd = LIST_BP;
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get return list and print
+			printf("FIXME\n");
 			
 		}
 		else if(strcmp(cmd, "wl") == 0){
 			pkt.cmd = LIST_WP;
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
 			//get return list and print
+			printf("FIXME\n");
 		}
 		else if(strcmp(cmd, "g") == 0){
 			if(sscanf(buffer, "%s %x:%x", cmd, &(pkt.args[0]), &(pkt.args[1])) < 3){

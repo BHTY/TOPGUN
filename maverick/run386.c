@@ -86,7 +86,7 @@ void dump_seg_386(i386* pCPU, int seg) {
 	printf("\n");
 }
 
-#define PRINT_FLAG(mask, set, clear)       if(pCPU->flags & (1 << mask)){ \
+#define PRINT_FLAG(mask, set, clear)       if(pCPU->eflags & (1 << mask)){ \
 												printf(set); \
 											} else { \
 												printf(clear); \
