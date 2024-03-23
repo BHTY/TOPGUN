@@ -404,11 +404,13 @@ int main(int argc, char** argv) {
 	
 	if(argc > 2){
 		hPipe = CreateNamedPipeA(argv[2], PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 2, 4096, 4096, 0, NULL);
-		if(hPipe){
+		if(hPipe && hPipe != INVALID_HANDLE_VALUE){
 			printf("Creating named pipe %s with handle %p\n", argv[2], hPipe);
 			CreateThread(NULL, 0, ICEThread, hPipe, 0, NULL);
 			Pcpu->running = 0;
 			printf("Awaiting debugger connection to continue.\n");
+		}else{
+			printf("Failed to create named pipe with name %s\n", argv[2]);
 		}
 	}
 

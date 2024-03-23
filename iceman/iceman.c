@@ -121,7 +121,7 @@ int main(int argc, char** argv){
 	ice_regs regs;
 	brk_resp csip;
 	step_pkt step;
-	int i;
+	int i, p;
 	
 	if(!hPipe){
 		printf("Failed to open named pipe\n");
@@ -226,19 +226,28 @@ int main(int argc, char** argv){
 			GoUntilBP(hPipe, &csip);
 		}
 		else if(strcmp(cmd, "t") == 0){
-			printf("%04x:%08x: ", csip.cs, csip.ip);
-			
-			pkt.cmd = TRACE;
-			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			WaitPipeResponse(hPipe, &step, sizeof(step_pkt), sizeof(step_pkt));
-			csip.cs = step.csip.cs;
-			csip.ip = step.csip.ip;
-			
-			for(i = 0; i < step.num_bytes; i++){
-				printf("%02x ", step.bytes[i]);
+			if(sscanf(buffer, "%s %x", cmd, &(pkt.args[0])) < 2){
+				pkt.args[0] = 1;
 			}
 			
-			printf("\n\n");
+			for(p = 0; p < pkt.args[0]; p++){
+			
+				printf("%04x:%08x: ", csip.cs, csip.ip);
+				
+				pkt.cmd = TRACE;
+				WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
+				WaitPipeResponse(hPipe, &step, sizeof(step_pkt), sizeof(step_pkt));
+				csip.cs = step.csip.cs;
+				csip.ip = step.csip.ip;
+				
+				for(i = 0; i < step.num_bytes; i++){
+					printf("%02x ", step.bytes[i]);
+				}
+				
+				printf("\n");
+			}
+			
+			printf("\n");
 			
 			//disassemble
 		}
