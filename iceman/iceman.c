@@ -202,7 +202,7 @@ int main(int argc, char** argv){
 	ice_regs regs;
 	brk_resp csip;
 	step_pkt step;
-	int i, p;
+	int i, p, res;
 	unsigned char* temp_buf;
 	
 	if(!hPipe){
@@ -238,35 +238,45 @@ int main(int argc, char** argv){
 			
 		}else if(strcmp(cmd, "d") == 0){			
 			pkt.cmd = DUMP_MEMORY;
-			if(sscanf(buffer, "%s %x %x", cmd, &(pkt.args[0]), &(pkt.args[1]))){
-				printf("Receiving %d paragraphs from 0x%p\n", pkt.args[1], pkt.args[0]);
+			
+			res = sscanf(buffer, "%s %x %x", cmd, &(pkt.args[0]), &(pkt.args[1]));
+			
+			if(res == 2){
+				pkt.args[1] = 1;
+			}
+			
+			if(res < 2){
+				printf("Please enter a byte address.\n");
+				continue;
+			}
+			
+			//printf("Receiving %d paragraphs from 0x%p\n", pkt.args[1], pkt.args[0]);
+			
+			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
+			temp_buf = malloc(pkt.args[1] * 16);
+			WaitPipeResponse(hPipe, temp_buf, pkt.args[1] * 16, pkt.args[1] * 16);
+			
+			//memset(temp_buf, 0xff, pkt.args[1] * 16);
+			
+			for(i = 0; i < pkt.args[1]; i++){
+				printf("%p: ", i * 16 + pkt.args[0]);
 				
-				WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-				temp_buf = malloc(pkt.args[1] * 16);
-				WaitPipeResponse(hPipe, temp_buf, pkt.args[1] * 16, pkt.args[1] * 16);
+				for(p = 0; p < 16; p++){
+					printf("%02x ", temp_buf[i * 16 + p]);
+				}
 				
-				//memset(temp_buf, 0xff, pkt.args[1] * 16);
+				printf(" | ");
 				
-				for(i = 0; i < pkt.args[1]; i++){
-					printf("%p: ", i * 16 + pkt.args[0]);
-					
-					for(p = 0; p < 16; p++){
-						printf("%02x ", temp_buf[i * 16 + p]);
-					}
-					
-					printf(" | ");
-					
-					for(p = 0; p < 16; p++){
-						printf("%c", temp_buf[i * 16 + p]);
-					}
-					
-					printf("\n");
+				for(p = 0; p < 16; p++){
+					printf("%c", temp_buf[i * 16 + p]);
 				}
 				
 				printf("\n");
-				
-				free(temp_buf);
 			}
+			
+			printf("\n");
+			
+			free(temp_buf);
 			
 		}else if(strcmp(cmd, "dmf") == 0){
 			printf("Unsupported!\n");
