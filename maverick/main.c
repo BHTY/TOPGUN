@@ -167,19 +167,15 @@ int ice_step(i386* pCPU) {
 	
 	while(!(pCPU->running));
 	
-	printf("executing %p\n", linaddr);
-	
 	if(IN_BP(code_breakpoints[0], linaddr) || IN_BP(code_breakpoints[1], linaddr) || IN_BP(code_breakpoints[2], linaddr) || IN_BP(code_breakpoints[3], linaddr)){
 		//printf("%d, %d, %d, %d\n", IN_BP(code_breakpoints[0], linaddr), IN_BP(code_breakpoints[1], linaddr), IN_BP(code_breakpoints[2], linaddr), IN_BP(code_breakpoints[3], linaddr));
-		
-		printf("fuck\n");
 		
 		csip.ip = pCPU->eip;
 		csip.cs = pCPU->cs.selector;
 			
-		WriteFile(globalPipe, &csip, sizeof(brk_resp), &ret_val, NULL);
-			
 		printf("Breakpoint hit at %04x:%08x\n", csip.cs, csip.ip);
+			
+		WriteFile(globalPipe, &csip, sizeof(brk_resp), &ret_val, NULL);
 		
 		pCPU->running = 0;
 		return;
