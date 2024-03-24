@@ -147,6 +147,38 @@ int WaitPipeResponse(HANDLE hPipe, PVOID pBuf, int max_size, int min_size){
 	return received;
 }
 
+void PrintCodeBreakpoints(breakpoint* bp_list){
+	int i;
+	
+	for(i = 0; i < NUM_BPS; i++){
+		printf("#%d: ", i);
+		
+		if(bp_list[i].enabled){
+			printf("0x%p", bp_list[i].address);
+		}else{
+			printf("----------");
+		}
+		
+		printf("\n");
+	}
+}
+
+void PrintDataBreakpoints(breakpoint* bp_list){
+	int i;
+	
+	for(i = 0; i < NUM_BPS; i++){
+		printf("#%d: ", i);
+		
+		if(bp_list[i].enabled){
+			printf("0x%p - 0x%p", bp_list[i].address, bp_list[i].end - 1);
+		}else{
+			printf("-----------------------");
+		}
+		
+		printf("\n");
+	}
+}
+
 void SendBreakMessage(HANDLE hPipe, brk_resp* csip){
 	int num_bytes;
 	cmd_pkt pkt;
@@ -204,6 +236,7 @@ int main(int argc, char** argv){
 	step_pkt step;
 	int i, p, res;
 	unsigned char* temp_buf;
+	breakpoint bp_list[NUM_BPS];
 	
 	if(!hPipe){
 		printf("Failed to open named pipe\n");
@@ -301,15 +334,19 @@ int main(int argc, char** argv){
 			pkt.cmd = SET_BP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get breakpoint number response and print
-			printf("FIXME\n");
+			WaitPipeResponse(hPipe, &p, 4, 4);
+			
+			if(p == -1){
+				printf("Failed to set breakpoint\n\n");
+			}else{
+				printf("Set breakpoint %d at linear address 0x%p\n\n", p, pkt.args[0]);
+			}
 			
 		}else if(strcmp(cmd, "br") == 0){
 			pkt.cmd = UNSET_BP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get breakpoint number response and print
-			printf("FIXME\n");
+			printf("Removed breakpoint at linear address 0x%p\n\n", pkt.args[0]);
 			
 		}
 		else if(strcmp(cmd, "wp") == 0){
@@ -318,28 +355,34 @@ int main(int argc, char** argv){
 				pkt.args[1] = pkt.args[0]+1;
 			}
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get breakpoint number response and print
-			printf("FIXME\n");
+			WaitPipeResponse(hPipe, &p, 4, 4);
+			
+			if(p == -1){
+				printf("Failed to set data breakpoint\n\n");
+			}else{
+				printf("Set data breakpoint %d at linear address 0x%p\n\n", p, pkt.args[0]);
+			};
 		}
 		else if(strcmp(cmd, "wr") == 0){
 			pkt.cmd = UNSET_WP;
 			sscanf(buffer, "%s %x", cmd, &(pkt.args[0]));
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get breakpoint number response and print
-			printf("FIXME\n");
+			printf("Removed data breakpoint at linear address 0x%p\n\n", pkt.args[0]);
 		}
 		else if(strcmp(cmd, "bl") == 0){
 			pkt.cmd = LIST_BP;
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get return list and print
-			printf("FIXME\n");
+			WaitPipeResponse(hPipe, bp_list, sizeof(bp_list), sizeof(bp_list));
+			PrintCodeBreakpoints(bp_list);
+			printf("\n");
 			
 		}
 		else if(strcmp(cmd, "wl") == 0){
 			pkt.cmd = LIST_WP;
 			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
-			//get return list and print
-			printf("FIXME\n");
+			WaitPipeResponse(hPipe, bp_list, sizeof(bp_list), sizeof(bp_list));
+			PrintDataBreakpoints(bp_list);
+			printf("\n");
 		}
 		else if(strcmp(cmd, "g") == 0){
 			if(sscanf(buffer, "%s %x:%x", cmd, &(pkt.args[0]), &(pkt.args[1])) < 3){

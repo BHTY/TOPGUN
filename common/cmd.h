@@ -16,6 +16,14 @@ typedef struct{
 	unsigned char bytes[16];
 } step_pkt;
 
+typedef struct{
+	unsigned long address;
+	unsigned long end;
+	int enabled;
+} breakpoint;
+
+#define NUM_BPS 4
+
 //Command Numbers
 #define DUMP_REGS 0
 #define DUMP_MEMORY 1

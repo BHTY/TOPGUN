@@ -5,6 +5,7 @@
 #include <windows.h>
 #include "wnd.h"
 #include "../common/cmd.h"
+#include <setjmp.h>
 
 #define ESCAPE_ADDRESS 0x0000BEEF
 
@@ -12,9 +13,41 @@ char* Os2Base;
 
 int ice_running = 1;
 
+int signal_break = 0;
+
 HWND hDosWindow;
+HANDLE globalPipe;
 
+breakpoint code_breakpoints[NUM_BPS] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+breakpoint data_breakpoints[NUM_BPS] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 
+#define IN_BP(bp, addr)			(bp.enabled && (addr >= bp.address) && (addr < bp.end))
+
+void RemoveBreakpoint(uint32_t addr){
+	int i;
+	
+	for(i = 0; i < NUM_BPS; i++){
+		if(code_breakpoints[i].address == addr){
+			code_breakpoints[i].enabled = 0;
+		}
+	}
+}
+
+int AddBreakpoint(uint32_t addr){
+	int i;
+	
+	for(i = 0; i < NUM_BPS; i++){
+		if(code_breakpoints[i].enabled == 0){
+			code_breakpoints[i].address = addr;
+			code_breakpoints[i].end = addr + 1;
+			code_breakpoints[i].enabled = 1;
+			
+			return i;
+		}
+	}
+	
+	return -1;
+}
 
 i386* Pcpu;
 
@@ -125,10 +158,32 @@ int ice_step(i386* pCPU) {
 	uint32_t arg1, arg2;
 	int i, p;
 	int ret_val;
+	uint32_t linaddr;
+	brk_resp csip;
 
 	old_eip = pCPU->eip;
 	
+	linaddr = pCPU->cs.base + pCPU->eip;
+	
 	while(!(pCPU->running));
+	
+	printf("executing %p\n", linaddr);
+	
+	if(IN_BP(code_breakpoints[0], linaddr) || IN_BP(code_breakpoints[1], linaddr) || IN_BP(code_breakpoints[2], linaddr) || IN_BP(code_breakpoints[3], linaddr)){
+		//printf("%d, %d, %d, %d\n", IN_BP(code_breakpoints[0], linaddr), IN_BP(code_breakpoints[1], linaddr), IN_BP(code_breakpoints[2], linaddr), IN_BP(code_breakpoints[3], linaddr));
+		
+		printf("fuck\n");
+		
+		csip.ip = pCPU->eip;
+		csip.cs = pCPU->cs.selector;
+			
+		WriteFile(globalPipe, &csip, sizeof(brk_resp), &ret_val, NULL);
+			
+		printf("Breakpoint hit at %04x:%08x\n", csip.cs, csip.ip);
+		
+		pCPU->running = 0;
+		return;
+	}
 
 	if (single_step) {
 
@@ -395,6 +450,25 @@ DWORD WINAPI ICEThread(HANDLE hPipe){
 						free(temp_buf);
 						break;
 						
+					case LIST_BP:
+						//printf("Received command to list breakpoints\n");
+						WriteFile(hPipe, code_breakpoints, sizeof(code_breakpoints), &num_bytes, NULL);
+						break;
+						
+					case LIST_WP:
+						WriteFile(hPipe, data_breakpoints, sizeof(data_breakpoints), &num_bytes, NULL);
+						break;
+						
+					case SET_BP:
+						old_eip = AddBreakpoint(pkt.args[0]);
+					
+						WriteFile(hPipe, &old_eip, 4, &num_bytes, NULL);
+						break;
+						
+					case UNSET_BP:
+						RemoveBreakpoint(pkt.args[0]);
+						break;
+						
 					default:
 						break;
 				}
@@ -417,6 +491,7 @@ int main(int argc, char** argv) {
 	if(argc > 2){
 		hPipe = CreateNamedPipeA(argv[2], PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 2, 4096, 4096, 0, NULL);
 		if(hPipe && hPipe != INVALID_HANDLE_VALUE){
+			globalPipe = hPipe;
 			printf("Creating named pipe %s with handle %p\n", argv[2], hPipe);
 			CreateThread(NULL, 0, ICEThread, hPipe, 0, NULL);
 			Pcpu->running = 0;
