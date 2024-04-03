@@ -1129,6 +1129,7 @@ void decode_operand(decoded_op* pDop, decoded_op* rm, char reg, i386_operand* op
 			}
 
 			break;
+		case FAR_PTR:
 		case IMM:
 			pDop->type = IMM;
 

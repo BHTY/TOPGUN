@@ -2,7 +2,7 @@
 
 all: iceman.exe
 
-iceman.exe: iceman.obj
+iceman.exe: iceman.obj dis.obj
   $(link) /base:0x800000 /SUBSYSTEM:CONSOLE,3.10 $(ldebug) /debugtype:coff $(conlflags) -out:$*.exe $** $(conlibs) GDI32.lib USER32.lib
 
 {src}.c{src}.obj:

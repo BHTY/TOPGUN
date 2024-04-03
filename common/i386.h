@@ -83,7 +83,7 @@ static const char* seg_regs[] = { "ES", "CS", "SS", "DS", "FS", "GS" };
 #define CONST_REG 6
 #define CONST_SEG_REG 7
 #define IMM 8
-#define FAR_PTR 8
+#define FAR_PTR 14
 #define CONSTANT 9
 #define EDX_EAX 10
 #define IP_REL 11

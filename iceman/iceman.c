@@ -5,6 +5,12 @@
 #include "../common/cmd.h"
 #include "../common/i386.h"
 
+//async pipe!!!
+
+int dis386(char* address, int vaddr, int op_sz, int addr_sz, int segment_override, int which_segment);
+
+int broken = 0;
+
 void set_title(char* pipename){
 	char str[80];
 	sprintf(str, "ICEMAN-386 connected on %s", pipename);
@@ -197,6 +203,7 @@ typedef struct{
 DWORD WINAPI WaitForBreakMsgThread(wait_struct* pWait){
 	WaitPipeResponse(pWait->hPipe, pWait->csip, sizeof(brk_resp), sizeof(brk_resp));
 	pWait->complete = 1;
+	printf("bp hit\n");
 }
 
 void GoUntilBP(HANDLE hPipe, brk_resp* csip){
@@ -212,7 +219,7 @@ void GoUntilBP(HANDLE hPipe, brk_resp* csip){
 	
 	while(1){
 		if(waiting.complete){
-			printf("Broken at %04x:%08x.\n\n", csip->cs, csip->ip);
+			printf("Breakpoint hit at %04x:%08x.\n\n", csip->cs, csip->ip);
 			break;
 		}
 		
@@ -327,8 +334,27 @@ int main(int argc, char** argv){
 			printf("Unsupported!\n");
 			
 		}else if(strcmp(cmd, "u") == 0){
-			printf("Unsupported!\n");
-			printf("FIXME\n");
+			int seg, offs, num_bytes;
+			
+			num_bytes = 128;
+			
+			pkt.cmd = DUMP_MEMORY;
+			pkt.args[0] = 0x7d00;
+			pkt.args[1] = 8;
+			
+			WriteFile(hPipe, &pkt, sizeof(cmd_pkt), &num_bytes, NULL);
+			temp_buf = malloc(pkt.args[1] * 16);
+			WaitPipeResponse(hPipe, temp_buf, pkt.args[1] * 16, pkt.args[1] * 16);
+			
+			for(i = 0; i < num_bytes; ){
+				printf("%04x:%08x   ", 0x7c0, 0x100 + i);
+				i += dis386(temp_buf + i, pkt.args[0] + i, 0, 0, 0, 0);
+			}
+			
+			free(temp_buf);
+			
+			printf("\n");
+			
 			
 		}else if(strcmp(cmd, "bp") == 0){
 			pkt.cmd = SET_BP;
