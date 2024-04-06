@@ -3,6 +3,20 @@
 #include "os2thunk.h"
 #include "os2mem.h"
 
+uint32_t DosFlatToSel(OS2PTR32 ptr){
+	uint16_t selector = (ptr >> 3) >> 16;
+	uint16_t offset = ptr & 0xFFFF;
+	
+	return (selector << 16) | offset;
+}  
+
+OS2PTR32 DosSelToFlat(uint32_t farptr){
+	uint16_t selector = farptr >> 16;
+	uint16_t offset = farptr & 0xFFFF;
+	
+	return ((((selector & 0x1FFF) >> 3) | 0x7) << 16) | offset;
+}
+
 USHORT DosPutMessage_Impl(OS2HFILE hFile, USHORT msgLen, PCHAR pStr){
 	return write(TranslateHFILE(hFile), pStr, msgLen);
 }

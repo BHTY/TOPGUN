@@ -115,7 +115,7 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 		int allow_fixup_to_alias = 0;
 		int fixup_to_alias;
 		
-		printf("\t\t\tSource Type: %x\n", SrcType & 0xF);
+		//printf("\t\t\tSource Type: %x\n", SrcType & 0xF);
 		
 		//determine size
 		switch(SrcType & 0xF){
@@ -174,7 +174,7 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 					}
 				}
 				
-				fprintf(stderr, "FIXME: Internal fixup!\n");
+				//fprintf(stderr, "FIXME: Internal fixup!\n");
 				if(!fixup_to_alias){
 					
 				}else{
@@ -280,8 +280,6 @@ uint32_t Exec32(i386* pCPU, uint32_t dwTargetAddress, uint32_t* dwParamList, uin
 		printf("%p: ", pCPU->eip);
 		
 		dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);
-		
-		printf("Disassembly succeeded\n");
 		
 		i386_step(pCPU);
 		
@@ -500,7 +498,7 @@ int main(int argc, char** argv){
 	
 	VMMInit();
 	
-	printf("Program returned: %p\n", LoadLX(ExeName, ExeBuffer, ExeSize));
+	printf("OS/2 program returned: %p\n", LoadLX(ExeName, ExeBuffer, ExeSize));
 
 	return 0;
 }
