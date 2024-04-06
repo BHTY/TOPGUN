@@ -948,6 +948,10 @@ int do_int(i386* pCPU, decoded_op* src) {
 	uint8_t fn_code = pCPU->ah;
 
 	switch (vector) {
+		case 0x80: //OS/2 System Call Vector
+			pCPU->eax = HostCall(pCPU->eax, TranslateEmulatedToVirtualAddress(pCPU->esp + 4), 4);
+			break;
+		
 		case 0x21:
 			switch (fn_code) {
 				uint8_t c;

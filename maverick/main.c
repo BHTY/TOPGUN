@@ -23,6 +23,11 @@ breakpoint data_breakpoints[NUM_BPS] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 
 
 #define IN_BP(bp, addr)			(bp.enabled && (addr >= bp.address) && (addr < bp.end))
 
+int HostCall(int eax, int esp, int num){
+	printf("UNSUPPORTED\n");
+	return 0;
+}
+
 void RemoveBreakpoint(uint32_t addr){
 	int i;
 	

@@ -90,11 +90,21 @@ void print_flag(int flag){
 	}
 }
 
-int disasm_operand(char* string, unsigned char* address, i386_operand* op, char reg, char mod, char rm, int op_sz, int addr_sz, int segment_override, int which_segment){
+void sprintf_signed_hex(char* string, int32_t disp){
+	if(disp < 0){
+		sprintf(string, "-0x%08x", -disp);
+	}else{
+		sprintf(string, "0x%08x", disp);
+	}
+}
+
+int disasm_operand(char* string, uint32_t vaddr, unsigned char* address, i386_operand* op, char reg, char mod, char rm, int op_sz, int addr_sz, int segment_override, int which_segment){
 	int actual_size;
 	char** reg_table;
 	char* sz_str;
 	uint16_t offset;
+	uint32_t disp;
+	int inst_size = 0;
 
 	if(op->type == NONE) return 0;
 
@@ -159,6 +169,26 @@ int disasm_operand(char* string, unsigned char* address, i386_operand* op, char 
 			strcpy(string, reg_table[op->value]);
 			break;
 		case SIMM:
+			switch(actual_size){
+				case SZ_8:
+					disp = SX8(*address);
+					inst_size = 1;
+					break;
+				case SZ_16:
+					disp = SX16(*(uint16_t*)address);
+					inst_size = 2;
+					break;
+				case SZ_32:
+					disp = *(uint32_t*)address;
+					inst_size = 4;
+					break;
+				default: printf("help\n"); while(1); break;
+			}
+			
+			sprintf_signed_hex(string, disp);
+			
+			return inst_size;
+		
 			break;
 		case OFFSET:
 			if(addr_sz){
@@ -203,6 +233,24 @@ int disasm_operand(char* string, unsigned char* address, i386_operand* op, char 
 			sprintf(string, "0%02xh", op->value);
 			break;
 		case IP_REL:
+			switch(actual_size){
+				case SZ_8:
+					disp = SX8(*address);
+					inst_size = 1;
+					break;
+				case SZ_16:
+					disp = SX16(*(uint16_t*)address);
+					inst_size = 2;
+					break;
+				case SZ_32:
+					disp = *(uint32_t*)address;
+					inst_size = 4;
+					break;
+				default: printf("help\n"); while(1); break;
+			}
+			
+			sprintf(string, "0x%08x", vaddr + inst_size + disp);
+			return inst_size;
 			break;
 		default:
 			break;
@@ -259,9 +307,9 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 	}
 
 	//decode operands
-	size += disasm_operand(destination, address, &(inst.dest), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
-	size += disasm_operand(source1, address, &(inst.src1), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
-	size += disasm_operand(source2, address, &(inst.src2), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
+	size += disasm_operand(destination, vaddr + size, address, &(inst.dest), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
+	size += disasm_operand(source1, vaddr + size, address, &(inst.src1), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
+	size += disasm_operand(source2, vaddr + size, address, &(inst.src2), reg, mod, rm, op_sz, addr_sz, segment_override, which_segment);
 
 	//disassemble instructions
 	switch(inst.op_type){
@@ -271,6 +319,19 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 			break;
 		case XCHG:
 			printf("XCHG %s, %s\n", source1, source2);
+			break;
+		case PUSH:
+			printf("PUSH %s\n", source1);
+			break;
+		case POP:
+		case POP_SR:
+			printf("POP %s\n", destination);
+			break;
+		case CALL_NEAR:
+			printf("CALL %s\n", source1);
+			break;
+		case RETN:
+			printf("RETN %s\n", source1);
 			break;
 		case MOV_TO_SR:
 		case MOV:
