@@ -112,6 +112,8 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 		WORD FinalVal2 = 0;
 		DWORD FinalSize = 0;
 		DWORD Additive;
+		int allow_fixup_to_alias = 0;
+		int fixup_to_alias;
 		
 		printf("\t\t\tSource Type: %x\n", SrcType & 0xF);
 		
@@ -121,17 +123,26 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 				FinalSize = 1;
 				break;
 			case 0x2: //16-bit selector fixup
+				allow_fixup_to_alias = 1;
 			case 0x5: //16-bit offset fixup
 				FinalSize = 2;
 				break;
 			case 0x3: //16:16 pointer fixup
+				allow_fixup_to_alias = 1;
 			case 0x7: //32-bit offset fixup
 			case 0x8: //32-bit self-relative offset fixup
 				FinalSize = 4;
 				break;
 			case 0x6: //16:32 pointer fixup
 				FinalSize = 6;
+				allow_fixup_to_alias = 1;
 				break;
+		}
+		
+		fixup_to_alias = ((SrcType & 0x10) != 0);
+		
+		if(fixup_to_alias && !allow_fixup_to_alias){
+			fprintf(stderr, "WARNING: Bogus fixup srctype (%u) with fixup-to-alias flag!\n", SrcType & 0xF);
 		}
 		
 		if(SrcType & 0x20){ //contains source list
@@ -141,10 +152,34 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 			pFixup += 2;
 		}
 		
-		switch(FixupFlags & 0x3){
+		switch(FixupFlags & 0x3){			
 			case 0x00: { //Internal fixup record
-				fprintf(stderr, "FIXME INTERNAL FIXUP!\n");
-				exit(1);
+				uint16_t ObjectId = 0;
+				uint32_t TargetOffset = 0;
+				
+				if(FixupFlags & 0x40){ //16-bit value
+					ObjectId = *(uint16_t*)pFixup;
+					pFixup += 2;
+				}else{
+					ObjectId = *(pFixup++);
+				}
+				
+				if((SrcType & 0xF) != 2){ //not used for 16-bit selector fixups
+					if(FixupFlags & 0x10){ //32-bit target offset
+						TargetOffset = *(uint32_t*)pFixup;
+						pFixup += 4;
+					}else{ //16-bit target offset
+						TargetOffset = *(uint16_t*)pFixup;
+						pFixup += 2;
+					}
+				}
+				
+				fprintf(stderr, "FIXME: Internal fixup!\n");
+				if(!fixup_to_alias){
+					
+				}else{
+				}
+				
 				break;
 			}
 			
@@ -245,6 +280,8 @@ uint32_t Exec32(i386* pCPU, uint32_t dwTargetAddress, uint32_t* dwParamList, uin
 		printf("%p: ", pCPU->eip);
 		
 		dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);
+		
+		printf("Disassembly succeeded\n");
 		
 		i386_step(pCPU);
 		
@@ -359,6 +396,9 @@ DWORD LoadLX(LPSTR FileName, PBYTE Buffer, DWORD Length){
 					if(pObjPage->data_size < pLX->page_size){
 						memset(TranslateEmulatedToVirtualAddress(pDst) + pObjPage->data_size, 0, pLX->page_size - pObjPage->data_size);
 					}
+					break;
+				case 0x03: //zerofill
+					memset(TranslateEmulatedToVirtualAddress(pDst), 0, pLX->page_size);
 					break;
 				default:
 					fprintf(stderr, "Unknown flag 0x%x in object %d page %d\n", pObjPage->flags, i, PageNumber);

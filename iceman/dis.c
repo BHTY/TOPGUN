@@ -31,6 +31,74 @@ void pdisp32(char* dest_str, int32_t num){
 	}
 }
 
+int dis_sib(unsigned char* address, char mod, char reg, char rm){
+	char index[16];
+	int sz = 1;
+	uint8_t sib = *(++address);
+	
+	if(BASE(sib) == 5 && mod == 0){
+		sprintf(index, "0x%08x", *(uint32_t*)address);
+		sz += 4;
+	}else{
+		strcat(rm_str, regs_32[BASE(sib)]);
+	}
+	
+	if(INDEX(sib) != 4){
+		if(SCALE(sib) == 1){
+			sprintf(index, "+%s", regs_32[INDEX(sib)]);
+		}else{
+			sprintf(index, "+%s*%d", regs_32[INDEX(sib)], 1 << SCALE(sib));
+		}
+		strcat(rm_str, index);
+	}
+	
+	return sz;
+}
+
+int rm32(unsigned char* address, int op_sz, char mod, char reg, char rm){
+	char disp[16];
+	
+	int sz = 0;
+	
+	rm_str[0] = 0;
+	
+	if(mod == 3){
+		return sz;
+	}
+	
+	switch(rm){
+		case 5:
+			if(mod){
+				sprintf(rm_str, "0x%08x", *(uint32_t*)(address));
+				sz += 4;
+				break;
+			}
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+		case 6:
+		case 7:
+			strcat(rm_str, regs_32[rm]);
+			break;
+		case 4: //SIB
+			sz += dis_sib(address, mod, reg, rm);
+			break;
+	}
+	
+	if(mod == 1){
+		pdisp8(disp, *(uint8_t*)(address));
+		sz += 1;	
+		strcat(rm_str, disp);
+	} else if(mod == 2){
+		pdisp32(disp, *(uint32_t*)(address));
+		sz += 4;	
+		strcat(rm_str, disp);
+	}
+	
+	return sz;
+}
+
 int rm16(unsigned char* address, int op_sz, char mod, char reg, char rm){
 	
 	int sz = 0;
@@ -300,7 +368,7 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 		mod = MOD(modrm);
 
 		if(addr_sz){
-			//size += rm32...
+			size += rm32(address, op_sz, mod, reg, rm);
 		}else{
 			size += rm16(address, op_sz, mod, reg, rm);
 		}
