@@ -29,6 +29,8 @@ INTERRUPTS
 
 */
 
+static const char* alux_op_names[] = {"TEST", "???", "NOT", "NEG", "MUL", "IMUL", "DIV", "IDIV"};
+static const char* shift_names[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "---", "SAR"};
 static const char* alu_op_names[] = { "ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP" };
 static const char* regs_16[] = { "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI" };
 static const char* regs_32[] = { "EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI" };
@@ -705,7 +707,7 @@ static i386_op ExtendedInstructionTable[256] = {{INVALID},
 	{INVALID},
 	{INVALID},
 	{INVALID},
-	{INVALID},
+	{ALU_SPECIAL, ALU_IMUL, USE_MODRM, 0, {REG_MODRM, SZ_1632}, {REG_MODRM, SZ_1632}, {RM_MODRM, SZ_1632}}, //IMUL r32, r/m32
 	{INVALID},
 	{INVALID},
 	{INVALID},
@@ -1012,7 +1014,7 @@ static i386_op InstructionTable[256] = {
 	{LD_FP, DS, USE_MODRM, 0, { REG_MODRM, SZ_1632 }, { MEM_MODRM, SZ_3248 }, { NONE }}, //LDS r16, m16:16
 	{ MOV, 0, USE_MODRM, 0, { RM_MODRM, SZ_8 }, { IMM, SZ_8 }, { NONE } }, //MOV r/m8, imm8
 	{ MOV, 0, USE_MODRM, 0, { RM_MODRM, SZ_1632 }, { IMM, SZ_1632 }, { NONE } }, //MOV r/m16, imm16
-	{ENTER, 0, 0, 0, {NONE}, {NONE}, {NONE}}, //ENTER
+	{ENTER, 0, 0, 0, {NONE}, {IMM, SZ_16}, {IMM, SZ_8}}, //ENTER
 	{ LEAVE, 0, 0, 0, {NONE}, {NONE}, {NONE} }, //LEAVE
 	{ RETF, 0, 0, 0, {NONE}, {IMM, SZ_16}, {NONE} }, //RETF imm16
 	{ RETF, 0, 0, 0, {NONE}, {CONSTANT, SZ_16, 0}, {NONE} }, //RETF

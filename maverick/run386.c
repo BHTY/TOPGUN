@@ -559,6 +559,25 @@ int do_push(i386* pCPU, decoded_op* src) {
 	return 0;
 }
 
+int do_enter(i386* pCPU, decoded_op* src1, decoded_op* src2){
+	uint32_t temp, i;
+	i386_push(pCPU, pCPU->ebp);
+	temp = pCPU->esp;
+	i386_push(pCPU, temp);
+	pCPU->ebp = temp;
+	pCPU->esp -= read_source(pCPU,src1);
+}
+
+int do_leave(i386* pCPU){
+	if(MODE(pCPU->ss)){
+		pCPU->esp = pCPU->ebp;
+	}else{
+		pCPU->sp = pCPU->bp;
+	}
+	
+	pCPU->ebp = i386_pop(pCPU);
+}
+
 int do_pushf(i386* pCPU){
 	i386_push(pCPU, pCPU->eflags);
 	return 0;
@@ -1457,6 +1476,8 @@ int i386_step(i386* pCPU) {
 		case EXTENDED:
 			byte = bus_read_8(pCPU->cs.base + pCPU->eip++);
 			inst = ExtendedInstructionTable[byte];
+			
+			if(inst.op_type == -1) printf("WARNING ");
 			break;
 		case REPEZ:
 		case REPNE:
@@ -1500,6 +1521,12 @@ int i386_step(i386* pCPU) {
 
 	//execute instructions
 	switch (inst.op_type) {
+		case ENTER:
+			return do_enter(pCPU, &src1, &src2);
+			break;
+		case LEAVE:
+			return do_leave(pCPU);
+			break;
 		case ALU:
 			return do_alu_op(pCPU, inst.sub_type, &dst, &src1, &src2, reg);
 			break;

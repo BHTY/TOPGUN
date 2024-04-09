@@ -11,6 +11,38 @@
 0x12B (299)		Dos32AllocMem				*
 */
 
+ULONG DosSysInfo[] = {255, 		//QSV_MAX_PATH_LENGTH		1
+					  1, 		//QSV_MAX_TEXT_SESSIONS		2
+					  1,   		//QSV_MAX_PM_SESSIONS		3
+					  1,   		//QSV_MAX_VDM_SESSIONS		4
+					  1,   		//QSV_BOOT_DRIVE			5
+					  1,   		//QSV_DYN_PRI_VARIATION		6
+					  1,  		//QSV_MAX_WAIT				7
+					  1,   		//QSV_MIN_SLICE				8
+					  1,   		//QSV_MAX_SLICE				9
+					  0x1000,	//QSV_PAGE_SIZE				A
+					  20,  		//QSV_VERSION_MAJOR			B
+					  0,   		//QSV_VERSION_MINOR			C
+					  0,   		//QSV_VERSION_REVISION		D
+					  0,   		//QSV_MS_COUNT				E
+					  0,   		//QSV_TIME_LOW				F
+					  0,   		//QSV_TIME_HIGH				10
+					  0x100000,	//QSV_TOTPHYSMEM			11
+					  0x100000,	//QSV_TOTRESMEM				12
+					  0x100000,	//QSV_TOTAVAILMEM			13
+					  0x100000,	//QSV_MAXPRMEM				14
+					  0x100000,	//QSV_MAXSHMEM				15
+					  1,   		//QSV_TIMER_INTERVAL		16
+					  1,  		//QSV_MAX_COMP_LENGTH		17
+					  1,   		//QSV_FOREGROUND_FS_SESSION	18
+					  1,   		//QSV_FOREGROUND_PROCESS	19
+					  1,   		//QSV_NUMPROCESSORS			1A
+					  0x100000,	//QSV_MAXHPRMEM				1B
+					  0x100000,	//QSV_MAXHSHMEM				1C
+					  0x1000,	//QSV_MAXPROCESSES			1D
+					  0x100000, //QSV_VIRTUALADDRESSLIMIT	1E
+};
+
 APIRET DosSetFilePtr_Impl(OS2HFILE hFile, LONG ib, ULONG method, PULONG ibActual){
 	ULONG res = lseek(TranslateHFILE(hFile), ib, method);
 	
@@ -36,16 +68,20 @@ APIRET DosWrite_Impl(OS2HFILE hFile, PVOID pBuffer, ULONG cbWrite, PULONG pcbAct
 }
 
 APIRET Dos32Write(OS2HFILE hFile, OS2PTR32 pBuffer, ULONG cbWrite, OS2PTR32 pcbActual){
+	TRACE(("Dos32Write(%p, %p, %p, %p)\n", hFile, pBuffer, cbWrite, pcbActual));
 	return DosWrite_Impl(hFile, TranslateEmulatedToVirtualAddress(pBuffer), cbWrite, TranslateEmulatedToVirtualAddress(pcbActual));
 }
 
 APIRET Dos32SetFilePtr(OS2HFILE hFile, LONG ib, ULONG method, OS2PTR32 ibActual){
+	TRACE(("Dos32SetFilePtr(%p, %p, %p, %p)\n", hFile, ib, method, ibActual));
 	return DosSetFilePtr_Impl(hFile, ib, method, TranslateEmulatedToVirtualAddress(ibActual));
 }
 
 APIRET Dos32AllocMem(OS2PTR32 pBaseAddress, ULONG ulObjectSize, ULONG ulAllocationFlags){
 	OS2PTR32 BaseAddress = PFToAddr(VMMAllocPages(0, ALIGN(ulObjectSize, 4096) >> 12));
 	OS2PTR32* ActualpBaseAddress = TranslateEmulatedToVirtualAddress(pBaseAddress);
+	
+	TRACE(("Dos32AllocMem(%p, %p, %p)\n", pBaseAddress, ulObjectSize, ulAllocationFlags));
 	
 	if(BaseAddress){
 		*ActualpBaseAddress = BaseAddress;
@@ -55,18 +91,32 @@ APIRET Dos32AllocMem(OS2PTR32 pBaseAddress, ULONG ulObjectSize, ULONG ulAllocati
 	}
 }
 
+APIRET DosQuerySysInfo_Impl(ULONG ulStartIndex, ULONG ulLastIndex, PULONG pDataBuffer, LONG ulDataBufferLength){
+	if((ulStartIndex > ulLastIndex) || ((4 * (ulLastIndex - ulStartIndex)) > ulDataBufferLength)){
+		return ERROR_BUFFER_OVERFLOW;
+	}
+	
+	if(ulStartIndex > 30 || ulLastIndex > 30){
+		return ERROR_INVALID_PARAMETER;
+	}
+	
+	memcpy(pDataBuffer, DosSysInfo + ulStartIndex - 1, 4 * (ulLastIndex - ulStartIndex));
+	
+	return NO_ERROR;
+}
+
 APIRET Dos32QuerySysInfo(ULONG ulStartIndex, ULONG ulLastIndex, OS2PTR32 pDataBuffer, LONG ulDataBufferLength){
-	TRACE("Dos32QuerySysInfo(%p, %p, %p, %p)\n", ulStartIndex, ulLastIndex, pDataBuffer, ulDataBufferLength);
-	while(1);
+	TRACE(("Dos32QuerySysInfo(%p, %p, %p, %p)\n", ulStartIndex, ulLastIndex, pDataBuffer, ulDataBufferLength));
+	return DosQuerySysInfo_Impl(ulStartIndex, ulLastIndex, TranslateEmulatedToVirtualAddress(pDataBuffer), ulDataBufferLength);
 }
 
 APIRET Dos32QueryHType(OS2HFILE hFile, OS2PTR32 pType, OS2PTR32 pAttr){
-	TRACE("Dos32QueryHType(%p, %p, %p)\n", hFile, pType, pAttr);
+	TRACE(("Dos32QueryHType(%p, %p, %p)\n", hFile, pType, pAttr));
 	while(1);
 }
 
 APIRET Dos32Exit(ULONG ulAction, ULONG ulResult){
-	TRACE("Dos32Exit(%x, %x)\n", ulAction, ulResult);
+	TRACE(("Dos32Exit(%x, %x)\n", ulAction, ulResult));
 	while(1);
 }
 
@@ -305,8 +355,8 @@ PVOID DosImportThunks[1025] = {1024,
 	0, //0xe6
 	0, //0xe7
 	0, //0xe8
-	Dos32Exit, //0xe9
-	0, //0xea
+	0, //0xe9
+	Dos32Exit, //0xea
 	0, //0xeb
 	0, //0xec
 	0, //0xed

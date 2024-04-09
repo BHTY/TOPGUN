@@ -67,7 +67,7 @@ uint32_t HostCall(uint32_t DestinationAddress, uint32_t* pParamList, uint32_t dw
 	};
 
 OS2PTR32 GenerateThunk(PVOID ThunkPtr){
-	OS2PTR32 pEmuThunk = PFToAddr(VMMAllocPages(0x80, 1));
+	OS2PTR32 pEmuThunk = PFToAddr(VMMAllocPages(0x800, 1));
 	PBYTE pThunkBits = TranslateEmulatedToVirtualAddress(pEmuThunk);
 	
 	*(pThunkBits) = 0xb8;

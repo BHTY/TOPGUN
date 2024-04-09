@@ -6,6 +6,9 @@ char source2[50];
 char rm_str[50];
 
 char* rm16_strs[] = {"BX+SI", "BX+DI", "BP+SI", "BP+DI", "SI", "DI", "BP", "BX"};
+char* string_op_names[] = {"MOVS", "SCAS", "STOS", "INS", "OUTS", "LODS", "CMPS"};
+char* jump_names[] = {"JO", "JNO", "JB", "JAE", "JE", "JNE", "JBE", "JA", "JS", "JNS", "JP", "JNP", "JL", "JGE", "JLE", "JG", "JMP", "JCXZ"};
+//09(aluspcl)
 
 void pdisp16(char* dest_str, int16_t num){
 	if(num >= 0){
@@ -19,7 +22,7 @@ void pdisp8(char* dest_str, int8_t num){
 	if(num >= 0){
 		sprintf(dest_str, "+0x%02x", num);
 	}else{
-		sprintf(dest_str, "-%0x02x", -num);
+		sprintf(dest_str, "-0x%02x", -num);
 	}
 }
 
@@ -34,17 +37,17 @@ void pdisp32(char* dest_str, int32_t num){
 int dis_sib(unsigned char* address, char mod, char reg, char rm){
 	char index[16];
 	int sz = 1;
-	uint8_t sib = *(++address);
+	uint8_t sib = *(address++);
 	
 	if(BASE(sib) == 5 && mod == 0){
 		sprintf(index, "0x%08x", *(uint32_t*)address);
 		sz += 4;
 	}else{
 		strcat(rm_str, regs_32[BASE(sib)]);
-	}
+	}	
 	
 	if(INDEX(sib) != 4){
-		if(SCALE(sib) == 1){
+		if(SCALE(sib) == 0){
 			sprintf(index, "+%s", regs_32[INDEX(sib)]);
 		}else{
 			sprintf(index, "+%s*%d", regs_32[INDEX(sib)], 1 << SCALE(sib));
@@ -55,7 +58,7 @@ int dis_sib(unsigned char* address, char mod, char reg, char rm){
 	return sz;
 }
 
-int rm32(unsigned char* address, int op_sz, char mod, char reg, char rm){
+int rm32(unsigned char* address, int op_sz, unsigned char mod, unsigned char reg, unsigned char rm){
 	char disp[16];
 	
 	int sz = 0;
@@ -67,10 +70,15 @@ int rm32(unsigned char* address, int op_sz, char mod, char reg, char rm){
 	}
 	
 	switch(rm){
+		int t;
+		
 		case 5:
-			if(mod){
+			if(!mod){
+				int i;
+				
 				sprintf(rm_str, "0x%08x", *(uint32_t*)(address));
 				sz += 4;
+				
 				break;
 			}
 		case 0:
@@ -82,7 +90,9 @@ int rm32(unsigned char* address, int op_sz, char mod, char reg, char rm){
 			strcat(rm_str, regs_32[rm]);
 			break;
 		case 4: //SIB
-			sz += dis_sib(address, mod, reg, rm);
+			t = dis_sib(address, mod, reg, rm);
+			address += t;
+			sz += t;
 			break;
 	}
 	
@@ -170,7 +180,7 @@ int disasm_operand(char* string, uint32_t vaddr, unsigned char* address, i386_op
 	int actual_size;
 	char** reg_table;
 	char* sz_str;
-	uint16_t offset;
+	uint32_t offset;
 	uint32_t disp;
 	int inst_size = 0;
 
@@ -266,6 +276,7 @@ int disasm_operand(char* string, uint32_t vaddr, unsigned char* address, i386_op
 				}else{
 					sprintf(string, "[0x%08x]", offset);
 				}
+				return 4;
 			}else{
 				offset = *(uint16_t*)address;
 				if(segment_override){
@@ -276,6 +287,7 @@ int disasm_operand(char* string, uint32_t vaddr, unsigned char* address, i386_op
 				
 				return 2;
 			}
+			break;
 		case IMM:
 
 			switch(actual_size){
@@ -298,7 +310,7 @@ int disasm_operand(char* string, uint32_t vaddr, unsigned char* address, i386_op
 		case FAR_PTR:
 			break;
 		case CONSTANT:
-			sprintf(string, "0%02xh", op->value);
+			sprintf(string, "0x%02x", op->value);
 			break;
 		case IP_REL:
 			switch(actual_size){
@@ -331,7 +343,7 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 	uint8_t byte = *(address++);
 	i386_op inst = InstructionTable[byte];
 	int size = 1;
-	char modrm, reg, rm, mod;
+	unsigned char modrm, reg, rm, mod;
 	int alu_op;
 
 	//prefixes
@@ -381,6 +393,13 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 
 	//disassemble instructions
 	switch(inst.op_type){
+		case JUMP:
+			printf("%s %s\n", jump_names[inst.sub_type], source1);
+			break;
+		case SHIFT:
+			alu_op = reg;
+			printf("%s %s, %s\n", shift_names[alu_op], source1, source2);
+			break;
 		case ALU:
 			alu_op = (inst.sub_type == ALU_MULTI) ? reg : inst.sub_type;
 			printf("%s %s, %s\n", alu_op_names[alu_op], source1, source2);
@@ -401,12 +420,34 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 		case RETN:
 			printf("RETN %s\n", source1);
 			break;
+		case LEA:
+			printf("LEA %s, %s\n", destination, source1);
+			break;
 		case MOV_TO_SR:
 		case MOV:
 			printf("MOV %s, %s\n", destination, source1);
 			break;
 		case INT_OP:
 			printf("INT %s\n", source1);
+			break;
+		case STRING_OP:
+			printf("%s", string_op_names[inst.sub_type]);
+		
+			if(inst.flags == STR_SZ_8){
+				printf("B");
+			}else if(inst.flags == STR_SZ_1632){
+				if(op_sz){
+					printf("D");
+				}else{
+					printf("W");
+				}
+			}
+			
+			if(segment_override){
+				printf(" %s", seg_regs[which_segment]);
+			}
+			
+			printf("\n");
 			break;
 		case CLR_FLAG:
 			printf("CL");
@@ -417,6 +458,21 @@ int dis386(unsigned char* address, int vaddr, int op_sz, int addr_sz, int segmen
 			printf("ST");
 			print_flag(inst.sub_type);
 			printf("\n");
+			break;
+		case ENTER:
+			printf("ENTER %s %s\n", source1, source2);
+			break;
+		case LEAVE:
+			printf("LEAVE\n");
+			break;
+		case INCDEC:
+			if(inst.sub_type == ID_INC){
+				printf("INC");
+			}else{
+				printf("DEC");
+			}
+			
+			printf(" %s\n", destination);
 			break;
 		default:
 			printf("unimplemented op %02x (operation %02x)\n", byte, inst.op_type);

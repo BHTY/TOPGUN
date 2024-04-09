@@ -10,11 +10,11 @@
 char* Os2Base;
 uint32_t PFBitmap[4096];
 
-#define PFDword(pfn)	(PFBitmap[pfn/32])
-#define PFStatus(pfn)	((   PFDword(pfn) >> (pfn % 32)) & 0x1)
+#define PFDword(pfn)	(PFBitmap[(pfn)/32])
+#define PFStatus(pfn)	((   PFDword((pfn)) >> ((pfn) % 32)) & 0x1)
 
-#define MarkPageA(pfn)		PFDword(pfn) |= (1 << (pfn % 32))
-#define MarkPageF(pfn)		PFDword(pfn) &= ~(1 << (pfn % 32))
+#define MarkPageA(pfn)		PFDword((pfn)) |= (1 << ((pfn) % 32))
+#define MarkPageF(pfn)		PFDword((pfn)) &= ~(1 << ((pfn) % 32))
 
 /*
 OS/2 Virtual Memory Management
@@ -116,7 +116,9 @@ uint32_t NumberOfPagesFreeHere(pfn_t index){ //return number of contiguous virtu
 		n++;
 	}
 	
-	return n;
+	//printf("Index = %p Page frame = %p PFStatus(i)=%d n=%d\n", index, i, PFStatus(i), n);
+	
+	return i - index;
 }
 
 pfn_t VMMScanAddressSpace(pfn_t vbase, uint32_t nPages){
@@ -126,7 +128,11 @@ pfn_t VMMScanAddressSpace(pfn_t vbase, uint32_t nPages){
 	while(current_pf < (4096 * 4096 * 32)){
 		temp = FindFirstFreePage(current_pf);
 		
-		if(NumberOfPagesFreeHere(temp) >= nPages) return temp;
+		//printf("Found %d free pages @ %p (%p), needs %d\n", NumberOfPagesFreeHere(temp), temp, PFDword(temp), nPages);
+		
+		if(NumberOfPagesFreeHere(temp) >= nPages){
+			return temp;
+		}
 		
 		current_pf = temp + NumberOfPagesFreeHere(temp);
 	}

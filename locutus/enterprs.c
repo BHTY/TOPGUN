@@ -83,6 +83,12 @@ INT CheckFormat(PBYTE* ppPointer, DWORD* pLength){
 void doFixup(OS2PTR32 pDst, uint16_t Offset, uint32_t FinalVal, uint16_t FinalVal2, uint32_t FinalSize){
 	uint8_t* page = TranslateEmulatedToVirtualAddress(pDst);
 	
+	//printf("Fixing up address %p to value %p (size %d)\n", pDst + Offset, FinalVal, FinalSize);
+	if(FinalVal == 0){
+		//printf("FIXME: HACK\n");
+		return;
+	}
+	
 	switch(FinalSize){
 		case 1: *(uint8_t*)(page + Offset) = FinalVal; break;
 		case 2: *(uint16_t*)(page + Offset) = FinalVal; break;
@@ -156,6 +162,8 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 			case 0x00: { //Internal fixup record
 				uint16_t ObjectId = 0;
 				uint32_t TargetOffset = 0;
+				uint8_t* ptr;
+				LxObjectTableEntry* TargetObj;
 				
 				if(FixupFlags & 0x40){ //16-bit value
 					ObjectId = *(uint16_t*)pFixup;
@@ -175,10 +183,21 @@ VOID FixupPage(LxHeader* pLX, LxObjectTableEntry* pObj, OS2PTR32 pDst){
 				}
 				
 				//fprintf(stderr, "FIXME: Internal fixup!\n");
-				if(!fixup_to_alias){
+				
+				TargetObj = ((LxObjectTableEntry*)(ExeBuffer + pLX->object_table_offset)) + (ObjectId-1);
+				ptr = TargetObj->reloc_base_addr + TargetOffset;
+				
+				/*if(!fixup_to_alias){
 					
 				}else{
-				}
+				}*/
+				
+				/*switch(FinalSize){	
+					case 1: FinalVal = *(uint8_t*)ptr; break;
+					case 2: FinalVal = *(uint16_t*)ptr; break;
+					case 4: FinalVal = *(uint32_t*)ptr; break;
+					case 6: FinalVal2 = *(uint16_t*)ptr; FinalVal = *(uint32_t*)(ptr+2); break;
+				}*/
 				
 				break;
 			}
@@ -274,22 +293,35 @@ uint32_t Exec32(i386* pCPU, uint32_t dwTargetAddress, uint32_t* dwParamList, uin
 	printf("Commencing execution with ESP=%p\n", pCPU->esp);	
 
 	while (pCPU->eip != ESCAPE_ADDRESS) {
+		int inst_size = 0;
+		
 		old_eip = pCPU->eip;
 		older_eip = pCPU->eip;
 		
-		printf("%p: ", pCPU->eip);
+			printf("%p: ", pCPU->eip);
 		
-		dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);
+			inst_size = dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);
+			
+			printf("\b");
+			
+			for(i = 0; i < inst_size; i++){
+				printf("%02x ", bus_read_8(pCPU->cs.base + pCPU->eip + i));
+			}
+			printf("\n");
 		
-		i386_step(pCPU);
+			i386_step(pCPU);
 		
-		/*for (; old_eip < pCPU->old_eip; old_eip++) {
-			printf("%02x ", bus_read_8(pCPU->cs.base + old_eip));
-		}*/
+			/*for (; old_eip < pCPU->old_eip; old_eip++) {
+				printf("%02x ", bus_read_8(pCPU->cs.base + old_eip));
+			}
+			
+			dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);*/
 		
-		//dis386(TranslateEmulatedToVirtualAddress(older_eip), older_eip, 1, 1, 0, 0);
+		
+		
+		/*dump_386(pCPU);
 
-		//printf("\n");
+		printf("\n\n");*/
 	}
 	
 	dump_386(pCPU);
@@ -298,7 +330,7 @@ uint32_t Exec32(i386* pCPU, uint32_t dwTargetAddress, uint32_t* dwParamList, uin
 }
 
 uint32_t LaunchOS2(uint32_t entrypoint, uint32_t sp, char* pEnv, char* pCmd, uint32_t hmod){
-	uint32_t dwParamList[] = {hmod, 0, pEnv, pCmd}; //modhandle, 0, env, cmd
+	uint32_t dwParamList[] = {hmod, 0, TranslateVirtualToEmulatedAddress(pEnv), TranslateVirtualToEmulatedAddress(pCmd)}; //modhandle, 0, env, cmd
 	
 	cpu.esp = sp;
 	
@@ -315,10 +347,10 @@ void ResolveImports(PBYTE Buffer, LxHeader* pLX){
 		TempBuffer[*pImpTbl] = 0;
 		printf("Loading library %s: ", TempBuffer);
 		
-		if(strcmp(TempBuffer, "MSG") == 0){
+		if(strcmpi(TempBuffer, "MSG") == 0){
 			printf("SUCCEEDED\n");
 			ModuleThunkTable[*(uint32_t*)(ModuleThunkTable) + 1] = MsgImportThunks;
-		}else if(strcmp(TempBuffer, "DOSCALLS") == 0){
+		}else if(strcmpi(TempBuffer, "DOSCALLS") == 0){
 			printf("SUCCEEDED\n");
 			ModuleThunkTable[*(uint32_t*)(ModuleThunkTable) + 1] = DosImportThunks;
 		}else{

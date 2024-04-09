@@ -6,7 +6,11 @@ typedef uint16_t OS2HFILE;
 #define TranslateHFILE(hFile)	(hFile)
 #define ALIGN(x, sz)	(((x % sz) == 0) ? x : (x + sz) - (x % sz))
 
-#define TRACE(a)		printf(a)
+#define TRACE(x)		printf x
+
+/*#define NO_ERROR 0
+#define ERROR_INVALID_PARAMETER 87
+#define ERROR_BUFFER_OVERFLOW 111*/
 
 OS2PTR32 GetModuleProcAddrByOrdinal(WORD ModuleId, DWORD ImportId);
 

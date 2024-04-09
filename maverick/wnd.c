@@ -4,6 +4,7 @@
 BITMAPINFO* bmi;
 HBITMAP BackingBitmap;
 char* pBits;
+HANDLE hConsole;
 
 extern i386* Pcpu;
 extern char* Os2Base;
@@ -21,6 +22,30 @@ DWORD WINAPI CallbackExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo){
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
+void DrawTextMode(){
+	CHAR_INFO buffer[2000];
+	COORD size;
+	COORD pos;
+	SMALL_RECT rgn;
+	int i;
+	
+	size.X = 80;
+	size.Y = 25;
+	pos.X = 0;
+	pos.Y = 0;
+	rgn.Left = 0;
+	rgn.Top = 0;
+	rgn.Right = 79;
+	rgn.Bottom = 24;
+	
+	for(i = 0; i < 2000; i++){
+		buffer[i].Char.AsciiChar = Os2Base[0xB8000 + i*2];
+		buffer[i].Attributes = Os2Base[0xB8000 + i*2 + 1];
+	}
+	
+	WriteConsoleOutputA(hConsole, buffer, size, pos, &rgn);
+}
+
 void DosPresent(HDC hdc){ //converts VRAM contents into visible HBITMAP, then blits
 	HDC hdcMem = CreateCompatibleDC(hdc);
 	
@@ -31,6 +56,8 @@ void DosPresent(HDC hdc){ //converts VRAM contents into visible HBITMAP, then bl
 	StretchBlt(hdc, 0, 0, 640, 400, hdcMem, 0, 0, 320, 200, SRCCOPY);
 	
 	DeleteDC(hdcMem);
+	
+	DrawTextMode();
 }
 
 int WinReadTimer(){
@@ -187,6 +214,8 @@ DWORD WINAPI DosWindowThread(HWND hIgnore){
 	SetTimer(DosWindow, 1, 10, NULL);
 	SetTimer(DosWindow, 2, 1000, NULL);
 	TickCountStart = GetTickCount();
+	
+	hConsole = GetStdHandle(STD_OUTPUT_HANDLE);//CreateConsoleScreenBuffer(NULL, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
 	
 	SetVGAPalette(0, 0x00, 0x00, 0x00, BackingBitmap);
 	SetVGAPalette(1, 0x00, 0x00, 0xaa, BackingBitmap);

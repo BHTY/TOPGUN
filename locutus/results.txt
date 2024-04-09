@@ -1,0 +1,4 @@
+_HELLO.EXE works (basic assembly test)
+HELLO.EXE fails with a runtime heap error(?)
+TESTBEEP.EXE crashes when trying to dereference the TIB via the FS register
+TESTPM.EXE fails to load due to missing library PMWIN
